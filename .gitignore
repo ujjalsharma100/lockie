@@ -1,0 +1,57 @@
+# Binaries (make build / go build)
+/lockie
+/lockied
+/lockie-proxy
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage
+*.test
+*.out
+coverage.txt
+coverage.html
+*.prof
+cpu.prof
+mem.prof
+
+# Goreleaser / release artifacts
+dist/
+
+# Go workspace and vendoring
+/vendor/
+go.work
+go.work.sum
+
+# golangci-lint
+.golangci-lint-cache/
+
+# Local Lockie state (dogfooding / dev in a checkout)
+.lockie/
+
+# Secrets and env (never commit literals)
+.env
+.env.*
+!.env.example
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS junk
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Debuggers
+debug/
+__debug_bin
