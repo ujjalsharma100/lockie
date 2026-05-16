@@ -18,6 +18,9 @@ coverage.html
 cpu.prof
 mem.prof
 
+# GitHub Actions (deferred until remote push / PAT is sorted)
+.github/workflows/
+
 # Goreleaser / release artifacts
 dist/
 
