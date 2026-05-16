@@ -1,0 +1,64 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "_lockie_managed": true,
+        "_lockie_priority": "first",
+        "matcher": "Read|Bash|Grep|Glob|Edit|Write|NotebookEdit|WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lockie hook post-tool"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "_lockie_managed": true,
+        "_lockie_priority": "last",
+        "matcher": "Bash|Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lockie hook pre-tool"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "_lockie_managed": true,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lockie hook session-start"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "_lockie_managed": true,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lockie hook session-stop"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "_lockie_managed": true,
+        "_lockie_priority": "first",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lockie hook prompt"
+          }
+        ]
+      }
+    ]
+  }
+}

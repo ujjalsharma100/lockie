@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "lockie hook prompt",
+        "_lockie_managed": true
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "lockie hook post-tool",
+        "matcher": ".*",
+        "_lockie_managed": true
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "lockie hook post-tool",
+        "matcher": ".*",
+        "_lockie_managed": true
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "lockie hook pre-tool",
+        "matcher": ".*",
+        "_lockie_managed": true
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "lockie hook session-stop",
+        "_lockie_managed": true
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": "lockie hook session-start",
+        "_lockie_managed": true
+      }
+    ]
+  }
+}
