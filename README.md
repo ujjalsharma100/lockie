@@ -47,4 +47,4 @@ Requires Go 1.23+.
 
 ## License
 
-Apache-2.0 (see repository license file when published).
+[Apache-2.0](LICENSE)
