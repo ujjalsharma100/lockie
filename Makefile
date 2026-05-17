@@ -9,7 +9,10 @@ LDFLAGS := -X '$(MODULE)/internal/version.Version=$(VERSION)' \
 	-X '$(MODULE)/internal/version.Commit=$(COMMIT)' \
 	-X '$(MODULE)/internal/version.Date=$(DATE)'
 
-.PHONY: build test test-setup lint tidy
+.PHONY: build test test-setup lint tidy release-snapshot
+
+release-snapshot:
+	goreleaser release --snapshot --clean --skip=publish
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/lockie

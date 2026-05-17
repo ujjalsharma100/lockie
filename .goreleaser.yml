@@ -1,0 +1,57 @@
+# Manual releases only — see RELEASE_CHECKLIST.md.
+# Run: goreleaser release --clean  (after tagging v*.*.*)
+
+version: 2
+
+project_name: lockie
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./... -race -count=1
+
+builds:
+  - id: lockie
+    main: ./cmd/lockie
+    binary: lockie
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/ujjalsharma100/lockie/internal/version.Version={{.Version}}
+      - -X github.com/ujjalsharma100/lockie/internal/version.Commit={{.Commit}}
+      - -X github.com/ujjalsharma100/lockie/internal/version.Date={{.CommitDate}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: ujjalsharma100
+    name: lockie
+  draft: false
+  prerelease: auto
+
+changelog:
+  disable: true
