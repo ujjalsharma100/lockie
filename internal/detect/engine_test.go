@@ -168,7 +168,7 @@ func TestEngine_EmptyInput(t *testing.T) {
 func TestEntropy_RequiresKeyword(t *testing.T) {
 	d := NewEntropyDetector()
 	// High-entropy string with NO keyword in proximity → no finding.
-	noKeyword := []byte("zzz_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_zzz Vk9p2QnRz5MxT1JhBk7sLm3Wf6Yc4Hd0")
+	noKeyword := []byte("zzz_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_zzz SAMPLE_HIGH_ENTROPY_NO_KEYWORD_X9K2mP4nQ7wR")
 	got, err := d.Scan(noKeyword)
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
@@ -178,7 +178,7 @@ func TestEntropy_RequiresKeyword(t *testing.T) {
 	}
 
 	// Same value with "token" nearby → flagged.
-	withKeyword := []byte("MY_TOKEN=Vk9p2QnRz5MxT1JhBk7sLm3Wf6Yc4Hd0FqRtBn8XwLq2Vn7M")
+	withKeyword := []byte("MY_TOKEN=SAMPLE_HIGH_ENTROPY_WITH_KEYWORD_X9K2mP4nQ7wR1tY6vZ0aB3cD6eF")
 	got, err = d.Scan(withKeyword)
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
@@ -211,7 +211,7 @@ func TestShannonEntropy(t *testing.T) {
 		{"empty", "", 0, 0},
 		{"uniform-byte", strings.Repeat("a", 100), 0, 0.01},
 		{"two-byte-even", strings.Repeat("ab", 50), 0.99, 1.01},
-		{"varied-base64", "Vk9p2QnRz5MxT1JhBk7sLm3Wf6Yc4Hd0FqRtBn8X", 4.5, 6.0},
+		{"varied-base64", "SAMPLE_HIGH_ENTROPY_VARIED_X9K2mP4nQ7wR1tY6vZ0aB3cD6eF0gH", 4.5, 6.0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
