@@ -9,12 +9,8 @@ import (
 
 	"github.com/ujjalsharma100/lockie/internal/detect"
 	"github.com/ujjalsharma100/lockie/internal/placeholder"
+	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
-
-// Redact-path tests expect vendor-shaped sample secrets in inputs/fixtures.
-// Committed placeholders (SAMPLE_*_REPLACE_ME) keep push scanning happy;
-// paste sample test keys locally before running those tests — see
-// test/fixtures/envfiles/*.env headers for shapes. Do not commit real keys.
 
 // newSubstituter wires a real default detector and a fresh session.
 // Tests that want a custom detector instantiate Substituter directly.
@@ -36,7 +32,7 @@ func newSubstituter(t *testing.T) *Substituter {
 func TestSubstitution_RoundTripPreservesLiteral(t *testing.T) {
 	s := newSubstituter(t)
 	// e.g. STRIPE_LIVE=sk_test_… tail
-	input := []byte("STRIPE_LIVE=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME tail\n")
+	input := []byte("STRIPE_LIVE=" + testutil.StripeSecretKey + " tail\n")
 	redacted, events, err := s.Redact(input)
 	if err != nil {
 		t.Fatalf("Redact: %v", err)
@@ -64,7 +60,7 @@ func TestSubstitution_RoundTripPreservesLiteral(t *testing.T) {
 // byte-identical output (invariant #4 in its strict form).
 func TestSubstitution_IdempotentOnAlreadyRedacted(t *testing.T) {
 	s := newSubstituter(t)
-	input := []byte("API=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME\n")
+	input := []byte("API=" + testutil.StripeSecretKey + "\n")
 	first, _, err := s.Redact(input)
 	if err != nil {
 		t.Fatalf("Redact 1: %v", err)
@@ -149,11 +145,11 @@ func TestSubstitution_LongerUnknownDoesNotFallBackToShorter(t *testing.T) {
 // the §8.4 idempotency test uses the same pattern.
 func TestSubstitution_RedactRehydrateRoundTrip_DeterministicSweep(t *testing.T) {
 	secrets := []string{
-		"SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME",
-		"SAMPLE_AWS_ACCESS_KEY_ID_REPLACE_ME",
-		"SAMPLE_GITHUB_TOKEN_REPLACE_ME",
-		"SAMPLE_GOOGLE_API_KEY_REPLACE_ME",
-		"SAMPLE_SLACK_BOT_TOKEN_REPLACE_ME",
+		testutil.StripeSecretKey,
+		testutil.AWSAccessKeyID,
+		testutil.GitHubPAT,
+		testutil.AnthropicKey,
+		testutil.SlackBotToken,
 	}
 	for n := 1; n <= 50; n++ {
 		s := newSubstituter(t)
@@ -192,7 +188,7 @@ func TestSubstitution_RedactRehydrateRoundTrip_DeterministicSweep(t *testing.T) 
 // call). Across distinct sessions, placeholders restart at _1.
 func TestSubstitution_RedactStableAcrossCalls(t *testing.T) {
 	s := newSubstituter(t)
-	input := []byte("API=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME\n")
+	input := []byte("API=" + testutil.StripeSecretKey + "\n")
 	first, _, err := s.Redact(input)
 	if err != nil {
 		t.Fatalf("Redact 1: %v", err)
@@ -211,9 +207,9 @@ func TestSubstitution_RedactStableAcrossCalls(t *testing.T) {
 func TestSubstitution_RedactMultipleSecretsOneInput(t *testing.T) {
 	s := newSubstituter(t)
 	input := []byte(strings.Join([]string{
-		"STRIPE=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME",
-		"AWS_ACCESS_KEY=SAMPLE_AWS_ACCESS_KEY_ID_REPLACE_ME",
-		"GITHUB=SAMPLE_GITHUB_TOKEN_REPLACE_ME",
+		"STRIPE=" + testutil.StripeSecretKey,
+		"AWS_ACCESS_KEY=" + testutil.AWSAccessKeyID,
+		"GITHUB=" + testutil.GitHubPAT,
 	}, "\n") + "\n")
 	out, events, err := s.Redact(input)
 	if err != nil {
@@ -257,7 +253,7 @@ func TestSubstitution_RehydrateMissingSession(t *testing.T) {
 // missing locks.
 func TestSubstitution_ConcurrentRedactSafe(t *testing.T) {
 	s := newSubstituter(t)
-	input := []byte("STRIPE_LIVE=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME\n")
+	input := []byte("STRIPE_LIVE=" + testutil.StripeSecretKey + "\n")
 
 	var wg sync.WaitGroup
 	for i := 0; i < 32; i++ {

@@ -177,13 +177,13 @@ func (a *Agent) Uninstall(scope agent.Scope) error {
 }
 
 // DecodeEvent translates a Claude Code hook event JSON into the
-// canonical agent.Event. Stub until step 8.7.
+// canonical agent.Event.
 func (a *Agent) DecodeEvent(raw []byte, hook agent.HookType) (*agent.Event, error) {
 	return decodeEvent(raw, hook)
 }
 
 // EncodeResponse translates the canonical agent.Response into the
-// Claude Code wire format. Stub until step 8.7.
+// Claude Code wire format.
 func (a *Agent) EncodeResponse(resp *agent.Response, hook agent.HookType) ([]byte, error) {
 	return encodeResponse(resp, hook)
 }

@@ -21,6 +21,7 @@ func NewRoot() *cobra.Command {
 		newUninstallCmd(),
 		newStatusCmd(),
 		newDaemonCmd(),
+		newHookCmd(),
 	)
 	return root
 }

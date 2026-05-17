@@ -15,13 +15,11 @@ import (
 
 	"github.com/ujjalsharma100/lockie/internal/daemon"
 	"github.com/ujjalsharma100/lockie/internal/store/memory"
+	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
 
-// Redaction-path tests need a vendor-shaped Stripe sample key locally.
-// Git push secret scanning rejects realistic key material in commits.
-// Paste a sk_test_… value (see test/fixtures/envfiles/stripe.env) and
-// remove the relevant t.Skip before running those tests.
-const secretStripe = "SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME"
+// secretStripe is a fabricated sk_test_ key (see testutil/secrets.go).
+const secretStripe = testutil.StripeSecretKey
 
 // startTestDaemon boots a server on a per-test socket and returns a
 // teardown func. macOS caps `struct sockaddr_un.sun_path` at 104

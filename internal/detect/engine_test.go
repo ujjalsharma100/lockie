@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
 
 // fixtures returns the absolute path to test/fixtures. It is the
@@ -65,8 +67,6 @@ func dumpFindings(findings []Finding) string {
 }
 
 func TestEngine_StripeEnv(t *testing.T) {
-	// Fixture ships placeholder text only (see test/fixtures/envfiles/stripe.env).
-	// Paste sample sk_test_/rk_test_ keys locally before expecting this to pass.
 	eng, err := NewDefaultEngine()
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
@@ -75,14 +75,11 @@ func TestEngine_StripeEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	// Expect sk_test_ and rk_test_ matches once real-shaped samples are in the fixture.
 	expectFinding(t, got, "stripe-access-token", "sk_test_")
 	expectFinding(t, got, "stripe-access-token", "rk_test_")
 }
 
 func TestEngine_AWSEnv(t *testing.T) {
-	// Fixture ships placeholder text only (see test/fixtures/envfiles/aws.env).
-	// Paste sample credentials locally before expecting this to pass.
 	eng, err := NewDefaultEngine()
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
@@ -93,15 +90,14 @@ func TestEngine_AWSEnv(t *testing.T) {
 	}
 	expectFinding(t, got, "aws-access-token", "AKIA")
 	// AWS secret access key has no fixed format; it is caught by the
-	// entropy detector because "SECRET" sits in the variable name on
+	// entropy detector because "secret" sits in the variable name on
 	// the same line.
-	expectFinding(t, got, "generic-high-entropy", "SECRET_ACCESS_KEY=")
+	expectFinding(t, got, "generic-high-entropy", "<generic-high-entropy>")
 }
 
 // TestEngine_MixedEnvGolden is the §8.4 exit-criterion assertion:
 // scanning mixed.env finds all 8 embedded secrets, each attributed
-// to the documented rule. Requires sample keys in mixed.env — see
-// test/fixtures/envfiles/mixed.env header comments.
+// to the documented rule.
 func TestEngine_MixedEnvGolden(t *testing.T) {
 	eng, err := NewDefaultEngine()
 	if err != nil {
@@ -124,7 +120,7 @@ func TestEngine_MixedEnvGolden(t *testing.T) {
 		{"anthropic-api-key", "sk-ant-api03-"},
 		{"google-api-key", "AIzaSy"},
 		{"jwt", "eyJ"},
-		{"generic-high-entropy", "INTERNAL_API_TOKEN"},
+		{"generic-high-entropy", testutil.InternalAPITok[:12]},
 	}
 	for _, w := range wants {
 		expectFinding(t, got, w.ruleID, w.substr)

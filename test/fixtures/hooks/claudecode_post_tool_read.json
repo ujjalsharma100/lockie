@@ -1,0 +1,10 @@
+{
+  "session_id": "lockie-test-session",
+  "cwd": "/tmp",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Read",
+  "tool_input": {
+    "file_path": "/tmp/.env"
+  },
+  "tool_response": "STRIPE_SECRET_KEY=<sample-stripe-key>\n"
+}
