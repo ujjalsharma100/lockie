@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -18,17 +17,19 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
 
-const secretStripe = testutil.StripeSecretKey
+func TestMain(m *testing.M) {
+	os.Exit(testutil.RunMain(m))
+}
 
 func TestHookRoundTrip_ClaudeCodePostTool(t *testing.T) {
 	t.Parallel()
 	sock, stop := startTestDaemon(t)
 	defer stop()
 
-	raw := readFixture(t, "hooks/claudecode_post_tool_read.json")
+	raw := testutil.ReadFixture(t, "hooks/claudecode_post_tool_read.json")
 	body := runHook(t, sock, []string{"hook", "post-tool"}, raw)
 
-	assertNoLiteral(t, body, secretStripe)
+	assertNoLiteral(t, body, testutil.StripeSecretKey)
 	if !strings.Contains(string(body), "STRIPE_KEY_") {
 		t.Fatalf("response missing placeholder: %s", body)
 	}
@@ -44,7 +45,7 @@ func TestHookRoundTrip_ClaudeCodePostTool(t *testing.T) {
 	if !ok {
 		t.Fatalf("updatedToolOutput type = %T", hs["updatedToolOutput"])
 	}
-	if strings.Contains(updated, secretStripe) {
+	if strings.Contains(updated, testutil.StripeSecretKey) {
 		t.Fatalf("updatedToolOutput still contains literal")
 	}
 }
@@ -54,10 +55,10 @@ func TestHookRoundTrip_CursorPostTool(t *testing.T) {
 	sock, stop := startTestDaemon(t)
 	defer stop()
 
-	raw := readFixture(t, "hooks/cursor_post_tool_read.json")
+	raw := testutil.ReadFixture(t, "hooks/cursor_post_tool_read.json")
 	body := runHook(t, sock, []string{"hook", "post-tool"}, raw)
 
-	assertNoLiteral(t, body, secretStripe)
+	assertNoLiteral(t, body, testutil.StripeSecretKey)
 	var resp map[string]any
 	if err := json.Unmarshal(body, &resp); err != nil {
 		t.Fatalf("response JSON: %v", err)
@@ -70,7 +71,7 @@ func TestHookRoundTrip_CursorPostTool(t *testing.T) {
 		t.Fatalf("missing modifiedOutput: %v", resp)
 	}
 	content, _ := out["content"].(string)
-	if strings.Contains(content, secretStripe) {
+	if strings.Contains(content, testutil.StripeSecretKey) {
 		t.Fatalf("modifiedOutput.content contains literal: %q", content)
 	}
 	if !strings.Contains(content, "STRIPE_KEY_") {
@@ -86,7 +87,7 @@ func TestHookRoundTrip_RedactThenRehydrate(t *testing.T) {
 	sock, stop := startTestDaemon(t)
 	defer stop()
 
-	postIn := readFixture(t, "hooks/claudecode_post_tool_read.json")
+	postIn := testutil.ReadFixture(t, "hooks/claudecode_post_tool_read.json")
 	postOut := runHook(t, sock, []string{"hook", "post-tool"}, postIn)
 
 	var postResp map[string]any
@@ -114,7 +115,7 @@ func TestHookRoundTrip_RedactThenRehydrate(t *testing.T) {
 	inner := preResp["hookSpecificOutput"].(map[string]any)
 	ui := inner["updatedInput"].(map[string]any)
 	cmd, _ := ui["command"].(string)
-	if !strings.Contains(cmd, secretStripe) {
+	if !strings.Contains(cmd, testutil.StripeSecretKey) {
 		t.Fatalf("rehydrated command missing literal: %q", cmd)
 	}
 	if strings.Contains(cmd, placeholder) {
@@ -135,20 +136,6 @@ func runHook(t *testing.T, socket string, args []string, stdin []byte) []byte {
 		t.Fatalf("lockie %v: %v\noutput:\n%s", full, err, out.String())
 	}
 	return out.Bytes()
-}
-
-func readFixture(t *testing.T, rel string) []byte {
-	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
-	}
-	path := filepath.Join(filepath.Dir(file), "..", "fixtures", rel)
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read fixture %s: %v", rel, err)
-	}
-	return b
 }
 
 func startTestDaemon(t *testing.T) (socketPath string, stop func()) {

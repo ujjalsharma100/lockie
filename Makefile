@@ -9,12 +9,16 @@ LDFLAGS := -X '$(MODULE)/internal/version.Version=$(VERSION)' \
 	-X '$(MODULE)/internal/version.Commit=$(COMMIT)' \
 	-X '$(MODULE)/internal/version.Date=$(DATE)'
 
-.PHONY: build test lint tidy
+.PHONY: build test test-setup lint tidy
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/lockie
 
-test:
+test-setup:
+	@test -f test/.env || cp test/.env.example test/.env
+	@echo "If tests fail, edit test/.env with doc-shaped sample keys (see test/README.md)"
+
+test: test-setup
 	go test ./... -race -count=1
 
 lint:

@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -14,27 +12,8 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
 
-// fixtures returns the absolute path to test/fixtures. It is the
-// only place the test file hard-codes a relative path; everything
-// else builds off this.
-func fixtures(t *testing.T) string {
-	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatalf("runtime.Caller failed")
-	}
-	repo := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	return filepath.Join(repo, "test", "fixtures")
-}
-
-func readFixture(t *testing.T, rel string) []byte {
-	t.Helper()
-	path := filepath.Join(fixtures(t), rel)
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", rel, err)
-	}
-	return b
+func TestMain(m *testing.M) {
+	os.Exit(testutil.RunMain(m))
 }
 
 // expectFinding asserts that findings contains exactly one finding
@@ -71,7 +50,7 @@ func TestEngine_StripeEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
 	}
-	got, err := eng.Scan(readFixture(t, "envfiles/stripe.env"))
+	got, err := eng.Scan(testutil.ReadFixture(t, "envfiles/stripe.env"))
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -84,7 +63,7 @@ func TestEngine_AWSEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
 	}
-	got, err := eng.Scan(readFixture(t, "envfiles/aws.env"))
+	got, err := eng.Scan(testutil.ReadFixture(t, "envfiles/aws.env"))
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -92,7 +71,7 @@ func TestEngine_AWSEnv(t *testing.T) {
 	// AWS secret access key has no fixed format; it is caught by the
 	// entropy detector because "secret" sits in the variable name on
 	// the same line.
-	expectFinding(t, got, "generic-high-entropy", "<generic-high-entropy>")
+	expectFinding(t, got, "generic-high-entropy", testutil.AWSSecretAccessKey[:12])
 }
 
 // TestEngine_MixedEnvGolden is the §8.4 exit-criterion assertion:
@@ -103,7 +82,7 @@ func TestEngine_MixedEnvGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
 	}
-	got, err := eng.Scan(readFixture(t, "envfiles/mixed.env"))
+	got, err := eng.Scan(testutil.ReadFixture(t, "envfiles/mixed.env"))
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -265,7 +244,7 @@ func TestResolveOverlaps_NonOverlappingPreserved(t *testing.T) {
 
 func TestStream_OffsetsMatchScan(t *testing.T) {
 	// Same fixture requirement as TestEngine_MixedEnvGolden (see mixed.env header).
-	input := readFixture(t, "envfiles/mixed.env")
+	input := testutil.ReadFixture(t, "envfiles/mixed.env")
 	eng, err := NewDefaultEngine()
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
@@ -320,10 +299,8 @@ func TestEngine_IdempotentRedaction(t *testing.T) {
 		t.Fatalf("NewDefaultEngine: %v", err)
 	}
 
-	// Fixture files use placeholders only; idempotency on them is trivial
-	// (zero findings). After pasting sample keys locally, include the
-	// fixtures here again to exercise real redaction paths.
 	inputs := [][]byte{
+		testutil.ReadFixture(t, "envfiles/mixed.env"),
 		generateMixedInput(t, 50),
 	}
 	for i, input := range inputs {

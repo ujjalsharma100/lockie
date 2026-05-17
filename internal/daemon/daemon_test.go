@@ -18,8 +18,9 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
 
-// secretStripe is a fabricated sk_test_ key (see testutil/secrets.go).
-const secretStripe = testutil.StripeSecretKey
+func TestMain(m *testing.M) {
+	os.Exit(testutil.RunMain(m))
+}
 
 // startTestDaemon boots a server on a per-test socket and returns a
 // teardown func. macOS caps `struct sockaddr_un.sun_path` at 104
@@ -120,7 +121,7 @@ func TestDaemon_HookPromptRedacts(t *testing.T) {
 	defer cancel()
 
 	sid := openSession(ctx, t, c)
-	prompt := "please use api key " + secretStripe + " for the call"
+	prompt := "please use api key " + testutil.StripeSecretKey + " for the call"
 	r, err := c.HookPrompt(ctx, daemon.HookPromptParams{
 		SessionID: sid,
 		Prompt:    prompt,
@@ -131,7 +132,7 @@ func TestDaemon_HookPromptRedacts(t *testing.T) {
 	if !r.Modified {
 		t.Fatalf("expected Modified=true; got false (out=%q)", r.Prompt)
 	}
-	if strings.Contains(r.Prompt, secretStripe) {
+	if strings.Contains(r.Prompt, testutil.StripeSecretKey) {
 		t.Fatalf("redacted prompt still contains literal: %q", r.Prompt)
 	}
 	if !strings.Contains(r.Prompt, "STRIPE_KEY_") {
@@ -154,7 +155,7 @@ func TestDaemon_PostToolRedact_ThenPreToolRehydrate(t *testing.T) {
 	post, err := c.HookPostTool(ctx, daemon.HookPostToolParams{
 		SessionID: sid,
 		Tool:      "Read",
-		Output:    daemon.HookPostToolOutput{Content: "API_KEY=" + secretStripe + "\n"},
+		Output:    daemon.HookPostToolOutput{Content: "API_KEY=" + testutil.StripeSecretKey + "\n"},
 	})
 	if err != nil {
 		t.Fatalf("HookPostTool: %v", err)
@@ -177,7 +178,7 @@ func TestDaemon_PostToolRedact_ThenPreToolRehydrate(t *testing.T) {
 		t.Fatalf("pre-tool not modified; in=%v", pre.Input)
 	}
 	got, _ := pre.Input["command"].(string)
-	if !strings.Contains(got, secretStripe) {
+	if !strings.Contains(got, testutil.StripeSecretKey) {
 		t.Fatalf("rehydrated command missing literal: %q", got)
 	}
 	if strings.Contains(got, placeholder) {
@@ -201,7 +202,7 @@ func TestDaemon_SessionIsolation(t *testing.T) {
 	post, err := c.HookPostTool(ctx, daemon.HookPostToolParams{
 		SessionID: sidA,
 		Tool:      "Read",
-		Output:    daemon.HookPostToolOutput{Content: secretStripe},
+		Output:    daemon.HookPostToolOutput{Content: testutil.StripeSecretKey},
 	})
 	if err != nil {
 		t.Fatalf("HookPostTool A: %v", err)
@@ -218,7 +219,7 @@ func TestDaemon_SessionIsolation(t *testing.T) {
 		t.Fatalf("HookPreTool B: %v", err)
 	}
 	cmd, _ := pre.Input["command"].(string)
-	if strings.Contains(cmd, secretStripe) {
+	if strings.Contains(cmd, testutil.StripeSecretKey) {
 		t.Fatalf("cross-session leak: session B rehydrated A's placeholder (%q)", cmd)
 	}
 }
@@ -276,7 +277,7 @@ func TestDaemon_100ConcurrentPostTool(t *testing.T) {
 			r, err := c.HookPostTool(ctx, daemon.HookPostToolParams{
 				SessionID: sid,
 				Tool:      "Read",
-				Output:    daemon.HookPostToolOutput{Content: secretStripe},
+				Output:    daemon.HookPostToolOutput{Content: testutil.StripeSecretKey},
 			})
 			if err != nil {
 				errs <- fmt.Errorf("post-tool %d: %w", i, err)
@@ -286,7 +287,7 @@ func TestDaemon_100ConcurrentPostTool(t *testing.T) {
 				errs <- fmt.Errorf("post-tool %d: not modified", i)
 				return
 			}
-			if strings.Contains(r.Output.Content, secretStripe) {
+			if strings.Contains(r.Output.Content, testutil.StripeSecretKey) {
 				errs <- fmt.Errorf("post-tool %d: literal leaked", i)
 				return
 			}
@@ -339,7 +340,7 @@ func TestDaemon_Stress(t *testing.T) {
 				_, err := c.HookPostTool(ctx, daemon.HookPostToolParams{
 					SessionID: sid,
 					Tool:      "Read",
-					Output:    daemon.HookPostToolOutput{Content: secretStripe},
+					Output:    daemon.HookPostToolOutput{Content: testutil.StripeSecretKey},
 				})
 				dur := time.Since(start)
 				if err != nil {

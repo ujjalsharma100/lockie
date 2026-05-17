@@ -16,20 +16,15 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
 
-const secretStripe = testutil.StripeSecretKey
+func TestMain(m *testing.M) {
+	os.Exit(testutil.RunMain(m))
+}
 
 func TestHook_PostTool_ClaudeCodeRoundTrip(t *testing.T) {
 	sock, stop := startHookTestDaemon(t)
 	defer stop()
 
-	eventPath := filepath.Join("..", "..", "test", "fixtures", "hooks", "claudecode_post_tool_read.json")
-	raw, err := os.ReadFile(eventPath)
-	if err != nil {
-		t.Fatalf("read fixture: %v", err)
-	}
-	if !strings.Contains(string(raw), secretStripe) {
-		t.Fatalf("fixture missing test secret literal")
-	}
+	raw := testutil.ReadFixture(t, "hooks/claudecode_post_tool_read.json")
 
 	root := cli.NewRoot()
 	root.SetArgs([]string{"hook", "post-tool", "--socket", sock})
@@ -46,7 +41,7 @@ func TestHook_PostTool_ClaudeCodeRoundTrip(t *testing.T) {
 	if len(body) == 0 {
 		t.Fatalf("empty hook response")
 	}
-	if strings.Contains(string(body), secretStripe) {
+	if strings.Contains(string(body), testutil.StripeSecretKey) {
 		t.Fatalf("response still contains literal: %s", body)
 	}
 	if !strings.Contains(string(body), "STRIPE_KEY_") {
@@ -65,7 +60,7 @@ func TestHook_PostTool_ClaudeCodeRoundTrip(t *testing.T) {
 	if !ok {
 		t.Fatalf("updatedToolOutput type = %T", hs["updatedToolOutput"])
 	}
-	if strings.Contains(updated, secretStripe) {
+	if strings.Contains(updated, testutil.StripeSecretKey) {
 		t.Fatalf("updated tool output contains literal: %q", updated)
 	}
 	if !strings.Contains(updated, "STRIPE_KEY_") {

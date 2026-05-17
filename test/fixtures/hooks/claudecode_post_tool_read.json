@@ -6,5 +6,5 @@
   "tool_input": {
     "file_path": "/tmp/.env"
   },
-  "tool_response": "STRIPE_SECRET_KEY=<sample-stripe-key>\n"
+  "tool_response": "STRIPE_SECRET_KEY={{STRIPE_SECRET_KEY}}\n"
 }

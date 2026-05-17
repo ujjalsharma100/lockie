@@ -2,6 +2,8 @@ package claudecode
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -9,17 +11,19 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
 
-const testStripeKey = testutil.StripeSecretKey
+func TestMain(m *testing.M) {
+	os.Exit(testutil.RunMain(m))
+}
 
 func TestDecodeEvent_PostToolUse_ReadStringResponse(t *testing.T) {
-	raw := []byte(`{
+	raw := []byte(fmt.Sprintf(`{
 		"session_id": "s1",
 		"cwd": "/tmp",
 		"hook_event_name": "PostToolUse",
 		"tool_name": "Read",
 		"tool_input": {"file_path": "/tmp/.env"},
-		"tool_response": "STRIPE_SECRET_KEY=` + testStripeKey + `\n"
-	}`)
+		"tool_response": "STRIPE_SECRET_KEY=%s\n"
+	}`, testutil.StripeSecretKey))
 	ev, err := decodeEvent(raw, agent.HookPostToolUse)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
@@ -27,7 +31,7 @@ func TestDecodeEvent_PostToolUse_ReadStringResponse(t *testing.T) {
 	if ev.Tool != "Read" || ev.SessionID != "s1" {
 		t.Fatalf("unexpected event: %+v", ev)
 	}
-	if ev.Output == nil || !strings.Contains(ev.Output.Content, testStripeKey) {
+	if ev.Output == nil || !strings.Contains(ev.Output.Content, testutil.StripeSecretKey) {
 		t.Fatalf("Output.Content = %+v", ev.Output)
 	}
 	if ev.Input[metaToolResponseKind] != "string" {
@@ -76,7 +80,7 @@ func TestEncodeResponse_PostToolUse_StringReplacement(t *testing.T) {
 }
 
 func TestEncodeResponse_PreToolUse_RehydratedInput(t *testing.T) {
-	input := map[string]any{"command": "curl " + testStripeKey}
+	input := map[string]any{"command": "curl " + testutil.StripeSecretKey}
 	body, err := encodeResponse(&agent.Response{
 		Modified:      true,
 		ModifiedInput: input,
@@ -90,7 +94,7 @@ func TestEncodeResponse_PreToolUse_RehydratedInput(t *testing.T) {
 	}
 	hs := m["hookSpecificOutput"].(map[string]any)
 	ui := hs["updatedInput"].(map[string]any)
-	if ui["command"] != "curl "+testStripeKey {
+	if ui["command"] != "curl "+testutil.StripeSecretKey {
 		t.Fatalf("updatedInput = %v", ui)
 	}
 }

@@ -1,33 +1,34 @@
-// Package testutil holds fabricated credentials shaped like real vendor
-// secrets so detection rules fire in tests. Values are taken from public
-// documentation examples (Stripe, AWS, jwt.io, etc.) — not live credentials.
+// Package testutil holds test credentials loaded from test/.env (gitignored).
+// Copy test/.env.example to test/.env and fill with doc-shaped sample keys.
 package testutil
 
-// Stripe-shaped keys (stripe-access-token rule: sk_test_ / rk_test_).
-//
-//nolint:gosec // public documentation examples; not live credentials
-const (
-	StripeSecretKey      = "<sample-stripe-key>"
-	StripePublishableKey = "<stripe-publishable-key>"
-	StripeRestrictedKey  = "<stripe-restricted-key>"
+// Populated by loadSecrets from test/.env on first Require or ReadFixture.
+var (
+	StripeSecretKey      string
+	StripePublishableKey string
+	StripeRestrictedKey  string
+	AWSAccessKeyID       string
+	AWSSecretAccessKey   string
+	GitHubPAT            string
+	SlackBotToken        string
+	AnthropicKey         string
+	GoogleAPIKey         string
+	JWTExample           string
+	InternalAPITok       string
 )
 
-// AWS-shaped keys (aws-access-token + generic-high-entropy for secret key).
-//
-//nolint:gosec
-const (
-	AWSAccessKeyID     = "<aws-access-key-id>"
-	AWSSecretAccessKey = "<aws-secret-access-key>"
-)
-
-// Other vendor tokens matched by DefaultRules().
-//
-//nolint:gosec
-const (
-	GitHubPAT      = "<github-personal-access-token>"
-	SlackBotToken  = "<slack-bot-token>"
-	AnthropicKey   = "<anthropic-api-key>"
-	GoogleAPIKey   = "<google-api-key>"
-	JWTExample     = "<jwt-example>"
-	InternalAPITok = "<internal-api-token>"
-)
+// secretKeys lists env keys in template substitution order (longest names first
+// is unnecessary here because placeholders are disjoint).
+var secretKeys = []string{
+	"STRIPE_SECRET_KEY",
+	"STRIPE_PUBLISHABLE_KEY",
+	"STRIPE_RESTRICTED_KEY",
+	"AWS_ACCESS_KEY_ID",
+	"AWS_SECRET_ACCESS_KEY",
+	"GITHUB_TOKEN",
+	"SLACK_BOT_TOKEN",
+	"ANTHROPIC_API_KEY",
+	"GOOGLE_API_KEY",
+	"INTERNAL_API_TOKEN",
+	"JWT",
+}

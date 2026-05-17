@@ -3,6 +3,7 @@ package substitute
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +12,10 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/placeholder"
 	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(testutil.RunMain(m))
+}
 
 // newSubstituter wires a real default detector and a fresh session.
 // Tests that want a custom detector instantiate Substituter directly.
