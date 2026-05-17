@@ -7,10 +7,7 @@
 package claudecode
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,14 +24,6 @@ const (
 // configDirName is the per-scope subdirectory Claude Code uses.
 // Both user and project scopes use ".claude"; only the parent differs.
 const configDirName = ".claude"
-
-// errInstallNotImplemented is returned from the non-dry-run install
-// path until step 8.3 wires up the real settings.json merger.
-var errInstallNotImplemented = errors.New("claudecode: install not implemented (step 8.3)")
-
-// errUninstallNotImplemented is returned from Uninstall until the
-// real settings merger lands.
-var errUninstallNotImplemented = errors.New("claudecode: uninstall not implemented (step 8.3)")
 
 // Agent implements agent.Agent for Claude Code. It is constructed
 // once and registered via init().
@@ -102,58 +91,89 @@ func (a *Agent) Detect() (agent.DetectResult, error) {
 }
 
 // Status reports the current Lockie integration state for the given
-// scope. Step 8.2 inspects only file presence — the real parser that
-// reads `_lockie_managed` entries lands in step 8.3.
+// scope. It loads settings.json (if present) and inspects which
+// canonical hooks have a `_lockie_managed: true` entry.
 func (a *Agent) Status(scope agent.Scope) (agent.Status, error) {
 	path, err := a.settingsPath(scope)
 	if err != nil {
 		return agent.Status{}, err
 	}
 	st := agent.Status{SettingsPath: path}
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return st, nil
-		}
+	settings, err := loadSettings(path)
+	if err != nil {
 		return st, err
 	}
-	// File exists but step 8.2 cannot yet tell whether Lockie owns it;
-	// the real status check (step 8.3) parses _lockie_managed entries.
-	st.Warnings = append(st.Warnings, "settings.json exists; install state inspection lands in step 8.3")
+	st.InstalledFor = installedHooks(settings)
+	st.Installed = len(st.InstalledFor) > 0
 	return st, nil
 }
 
-// Install wires Lockie's hooks into the appropriate settings.json.
-// In step 8.2 the only supported mode is dry-run: it writes the JSON
-// it WOULD have written to opts.DryRunOutput (or os.Stdout) so callers
-// can preview the merge. Real install (step 8.3) merges into the
-// existing file in-place.
+// Install merges Lockie's hook entries into the settings.json owned by
+// opts.Scope. With DryRun, the merged document is written to
+// opts.DryRunOutput (or os.Stdout) instead of disk so callers can
+// preview what would change.
+//
+// Install is idempotent: running it twice yields the same on-disk
+// file. User-authored hook entries are preserved; only entries marked
+// `_lockie_managed: true` are touched.
 func (a *Agent) Install(opts agent.InstallOptions) error {
-	if !opts.DryRun {
-		return errInstallNotImplemented
-	}
-
 	hooks := opts.EnabledHooks
 	if len(hooks) == 0 {
 		hooks = agent.AllHooks()
 	}
-	body, err := json.MarshalIndent(buildSettings(hooks), "", "  ")
+
+	path, err := a.settingsPath(opts.Scope)
 	if err != nil {
-		return fmt.Errorf("claudecode: marshal dry-run settings: %w", err)
+		return err
+	}
+	current, err := loadSettings(path)
+	if err != nil {
+		return err
+	}
+	merged := mergeInstall(current, hooks)
+	body, err := renderSettings(merged)
+	if err != nil {
+		return err
 	}
 
-	w := opts.DryRunOutput
-	if w == nil {
-		w = os.Stdout
+	if opts.DryRun {
+		w := opts.DryRunOutput
+		if w == nil {
+			w = os.Stdout
+		}
+		if _, err := w.Write(body); err != nil {
+			return fmt.Errorf("claudecode: write dry-run output: %w", err)
+		}
+		return nil
 	}
-	if _, err := io.WriteString(w, string(body)+"\n"); err != nil {
-		return fmt.Errorf("claudecode: write dry-run output: %w", err)
-	}
-	return nil
+	return writeSettingsAtomic(path, body)
 }
 
-// Uninstall is a stub until step 8.3.
-func (a *Agent) Uninstall(_ agent.Scope) error {
-	return errUninstallNotImplemented
+// Uninstall removes every Lockie-managed entry from the settings.json
+// owned by scope and rewrites the file. If the resulting document is
+// empty (i.e. Lockie was the only thing in the file), the file is
+// removed entirely so the user's directory looks untouched.
+func (a *Agent) Uninstall(scope agent.Scope) error {
+	path, err := a.settingsPath(scope)
+	if err != nil {
+		return err
+	}
+	current, err := loadSettings(path)
+	if err != nil {
+		return err
+	}
+	cleaned := mergeUninstall(current)
+	if len(cleaned) == 0 {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("claudecode: remove %s: %w", path, err)
+		}
+		return nil
+	}
+	body, err := renderSettings(cleaned)
+	if err != nil {
+		return err
+	}
+	return writeSettingsAtomic(path, body)
 }
 
 // DecodeEvent translates a Claude Code hook event JSON into the

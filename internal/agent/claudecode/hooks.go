@@ -4,32 +4,7 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/agent"
 )
 
-// hookCommand is one entry in the Claude Code "hooks" array — the
-// shape Claude Code expects on disk.
-type hookCommand struct {
-	Type    string `json:"type"`
-	Command string `json:"command"`
-}
-
-// hookEntry is one Lockie-managed entry under a Claude Code hook key
-// (e.g. "PreToolUse"). The leading-underscore fields are Lockie
-// metadata; Claude Code ignores unknown keys (IMPLEMENTATION.md §6.1).
-type hookEntry struct {
-	LockieManaged  bool          `json:"_lockie_managed"`
-	LockiePriority string        `json:"_lockie_priority,omitempty"`
-	Matcher        string        `json:"matcher,omitempty"`
-	Hooks          []hookCommand `json:"hooks"`
-}
-
-// settingsFile is the subset of settings.json Lockie owns. It is
-// deliberately minimal: the real merger (step 8.3) preserves all
-// user-authored keys; the dry-run path emits only the Lockie block so
-// callers can see what would change.
-type settingsFile struct {
-	Hooks map[string][]hookEntry `json:"hooks"`
-}
-
-// hookSpec describes a single Lockie-managed hook entry as defined in
+// hookSpec describes one Lockie-managed hook entry as defined in
 // IMPLEMENTATION.md §6.1. canonical maps to a Claude Code hook key,
 // and the entry carries Lockie's matcher + priority metadata.
 type hookSpec struct {
@@ -41,8 +16,8 @@ type hookSpec struct {
 }
 
 // hookSpecs are listed in canonical priority order for readability;
-// JSON encoding sorts the map keys alphabetically when written, which
-// is fine — Claude Code treats the dict as unordered.
+// the on-disk JSON encodes its map keys alphabetically which is fine —
+// Claude Code treats the dict as unordered.
 var hookSpecs = []hookSpec{
 	{
 		canonical: agent.HookSessionStart,
@@ -76,28 +51,80 @@ var hookSpecs = []hookSpec{
 	},
 }
 
-// buildSettings produces the Lockie-managed slice of settings.json
-// covering exactly the hooks in `enabled`. The result is a complete
-// settings file body — `{"hooks": {...}}` — suitable for dry-run
-// output. The real install path (step 8.3) will merge this into the
-// user's existing settings.json instead of replacing it.
-func buildSettings(enabled []agent.HookType) settingsFile {
+// lockieEntry is the Go representation of one Lockie-managed entry under
+// a Claude Code hook key. It is constructed as map[string]any so the
+// merge layer can mix it with user-authored entries that come back from
+// the JSON parser as the same type.
+func (s hookSpec) lockieEntry() map[string]any {
+	entry := map[string]any{
+		"_lockie_managed": true,
+		"hooks": []any{
+			map[string]any{
+				"type":    "command",
+				"command": s.command,
+			},
+		},
+	}
+	if s.priority != "" {
+		entry["_lockie_priority"] = s.priority
+	}
+	if s.matcher != "" {
+		entry["matcher"] = s.matcher
+	}
+	return entry
+}
+
+// nativeKeysOwned returns the Claude Code hook keys Lockie may write to.
+// Used by the uninstaller and Status to know which entries to inspect.
+func nativeKeysOwned() []string {
+	keys := make([]string, 0, len(hookSpecs))
+	for _, s := range hookSpecs {
+		keys = append(keys, s.nativeKey)
+	}
+	return keys
+}
+
+// canonicalFor returns the canonical HookType for a Claude Code native
+// hook key. Empty HookType + false means Lockie does not own this key.
+func canonicalFor(nativeKey string) (agent.HookType, bool) {
+	for _, s := range hookSpecs {
+		if s.nativeKey == nativeKey {
+			return s.canonical, true
+		}
+	}
+	return "", false
+}
+
+// buildLockiePlan returns the Lockie-managed hook entries for the
+// enabled canonical hooks, keyed by Claude Code native hook name.
+func buildLockiePlan(enabled []agent.HookType) map[string][]any {
 	enabledSet := make(map[agent.HookType]bool, len(enabled))
 	for _, h := range enabled {
 		enabledSet[h] = true
 	}
-
-	hooks := make(map[string][]hookEntry, len(hookSpecs))
-	for _, spec := range hookSpecs {
-		if !enabledSet[spec.canonical] {
+	out := map[string][]any{}
+	for _, s := range hookSpecs {
+		if !enabledSet[s.canonical] {
 			continue
 		}
-		hooks[spec.nativeKey] = []hookEntry{{
-			LockieManaged:  true,
-			LockiePriority: spec.priority,
-			Matcher:        spec.matcher,
-			Hooks:          []hookCommand{{Type: "command", Command: spec.command}},
-		}}
+		out[s.nativeKey] = []any{s.lockieEntry()}
 	}
-	return settingsFile{Hooks: hooks}
+	return out
+}
+
+// isLockieManaged reports whether an entry — as parsed from JSON or
+// freshly built by buildLockiePlan — carries `"_lockie_managed": true`.
+// Anything else (user-authored entries, malformed data, etc.) is left
+// untouched by install/uninstall.
+func isLockieManaged(entry any) bool {
+	m, ok := entry.(map[string]any)
+	if !ok {
+		return false
+	}
+	v, ok := m["_lockie_managed"]
+	if !ok {
+		return false
+	}
+	b, ok := v.(bool)
+	return ok && b
 }

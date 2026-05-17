@@ -83,7 +83,7 @@ func TestStatus_NoHooksFile(t *testing.T) {
 	}
 }
 
-func TestStatus_BaselineFixture(t *testing.T) {
+func TestStatus_BaselineHasNoLockieEntries(t *testing.T) {
 	a := newTestAgent(t)
 	dir := filepath.Join(a.homeDir, configDirName)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -101,8 +101,28 @@ func TestStatus_BaselineFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status() error: %v", err)
 	}
-	if len(st.Warnings) == 0 {
-		t.Fatalf("expected at least one warning when hooks.json exists pre-step-8.3b")
+	if st.Installed {
+		t.Fatalf("Installed = true, want false (baseline has no Lockie entries)")
+	}
+	if len(st.InstalledFor) != 0 {
+		t.Fatalf("InstalledFor = %v, want empty", st.InstalledFor)
+	}
+}
+
+func TestStatus_AfterInstall(t *testing.T) {
+	a := newTestAgent(t)
+	if err := a.Install(agent.InstallOptions{Scope: agent.ScopeUser}); err != nil {
+		t.Fatalf("Install() error: %v", err)
+	}
+	st, err := a.Status(agent.ScopeUser)
+	if err != nil {
+		t.Fatalf("Status() error: %v", err)
+	}
+	if !st.Installed {
+		t.Fatalf("Installed = false, want true after install")
+	}
+	if got := len(st.InstalledFor); got != len(agent.AllHooks()) {
+		t.Fatalf("InstalledFor has %d hooks, want %d", got, len(agent.AllHooks()))
 	}
 }
 
@@ -124,21 +144,6 @@ func TestInstall_DryRunMatchesGolden(t *testing.T) {
 	}
 	if got := buf.String(); got != string(want) {
 		t.Fatalf("dry-run output mismatch.\n--- got ---\n%s\n--- want ---\n%s", got, want)
-	}
-}
-
-func TestInstall_NonDryRunErrors(t *testing.T) {
-	a := newTestAgent(t)
-	err := a.Install(agent.InstallOptions{Scope: agent.ScopeUser})
-	if !errors.Is(err, errInstallNotImplemented) {
-		t.Fatalf("Install() err = %v, want errInstallNotImplemented", err)
-	}
-}
-
-func TestUninstall_NotImplemented(t *testing.T) {
-	a := newTestAgent(t)
-	if err := a.Uninstall(agent.ScopeUser); !errors.Is(err, errUninstallNotImplemented) {
-		t.Fatalf("Uninstall() err = %v, want errUninstallNotImplemented", err)
 	}
 }
 

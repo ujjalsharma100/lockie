@@ -7,10 +7,7 @@
 package cursor
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,11 +20,6 @@ const (
 	displayName   = "Cursor"
 	configDirName = ".cursor"
 	hooksFilename = "hooks.json"
-)
-
-var (
-	errInstallNotImplemented   = errors.New("cursor: install not implemented (step 8.3b)")
-	errUninstallNotImplemented = errors.New("cursor: uninstall not implemented (step 8.3b)")
 )
 
 // Agent implements agent.Agent for Cursor.
@@ -90,55 +82,85 @@ func (a *Agent) Detect() (agent.DetectResult, error) {
 }
 
 // Status reports the current Lockie integration state for the given
-// scope. Step 8.2 inspects only file presence — the real parser that
-// reads `_lockie_managed` entries lands in step 8.3b.
+// scope. It loads hooks.json (if present) and inspects which
+// canonical hooks have a `_lockie_managed: true` entry.
 func (a *Agent) Status(scope agent.Scope) (agent.Status, error) {
 	path, err := a.hooksPath(scope)
 	if err != nil {
 		return agent.Status{}, err
 	}
 	st := agent.Status{SettingsPath: path}
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return st, nil
-		}
+	file, err := loadHooksFile(path)
+	if err != nil {
 		return st, err
 	}
-	st.Warnings = append(st.Warnings, "hooks.json exists; install state inspection lands in step 8.3b")
+	st.InstalledFor = installedHooks(file)
+	st.Installed = len(st.InstalledFor) > 0
 	return st, nil
 }
 
-// Install wires Lockie's hooks into hooks.json. In step 8.2 only
-// dry-run is supported: it writes the JSON it WOULD have written to
-// opts.DryRunOutput (or os.Stdout) so callers can preview the merge.
-// Real install (step 8.3b) merges into the existing file in-place.
+// Install merges Lockie's hook entries into the hooks.json owned by
+// opts.Scope. With DryRun, the merged document is written to
+// opts.DryRunOutput (or os.Stdout) instead of disk.
+//
+// Install is idempotent and preserves user-authored entries.
 func (a *Agent) Install(opts agent.InstallOptions) error {
-	if !opts.DryRun {
-		return errInstallNotImplemented
-	}
-
 	hooks := opts.EnabledHooks
 	if len(hooks) == 0 {
 		hooks = agent.AllHooks()
 	}
-	body, err := json.MarshalIndent(buildHooks(hooks), "", "  ")
+	path, err := a.hooksPath(opts.Scope)
 	if err != nil {
-		return fmt.Errorf("cursor: marshal dry-run hooks: %w", err)
+		return err
 	}
-
-	w := opts.DryRunOutput
-	if w == nil {
-		w = os.Stdout
+	current, err := loadHooksFile(path)
+	if err != nil {
+		return err
 	}
-	if _, err := io.WriteString(w, string(body)+"\n"); err != nil {
-		return fmt.Errorf("cursor: write dry-run output: %w", err)
+	merged := mergeInstall(current, hooks)
+	body, err := renderHooksFile(merged)
+	if err != nil {
+		return err
 	}
-	return nil
+	if opts.DryRun {
+		w := opts.DryRunOutput
+		if w == nil {
+			w = os.Stdout
+		}
+		if _, err := w.Write(body); err != nil {
+			return fmt.Errorf("cursor: write dry-run output: %w", err)
+		}
+		return nil
+	}
+	return writeHooksAtomic(path, body)
 }
 
-// Uninstall is a stub until step 8.3b.
-func (a *Agent) Uninstall(_ agent.Scope) error {
-	return errUninstallNotImplemented
+// Uninstall removes every Lockie-managed entry from the hooks.json
+// owned by scope. If the user has no other top-level keys left
+// (i.e. the file was Lockie-only), the file is removed entirely so
+// the directory looks untouched; otherwise the remaining keys
+// (including a user-authored "version") are written back.
+func (a *Agent) Uninstall(scope agent.Scope) error {
+	path, err := a.hooksPath(scope)
+	if err != nil {
+		return err
+	}
+	current, err := loadHooksFile(path)
+	if err != nil {
+		return err
+	}
+	cleaned := mergeUninstall(current)
+	if len(cleaned) == 0 {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cursor: remove %s: %w", path, err)
+		}
+		return nil
+	}
+	body, err := renderHooksFile(cleaned)
+	if err != nil {
+		return err
+	}
+	return writeHooksAtomic(path, body)
 }
 
 // DecodeEvent translates a Cursor hook event JSON into the canonical

@@ -4,22 +4,7 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/agent"
 )
 
-// hookEntry is one Lockie-managed entry under a Cursor hook key.
-// Field order matches the wire format documented in
-// IMPLEMENTATION.md §6.2 (command, matcher, _lockie_managed); the
-// json:"omitempty" on matcher drops it for hooks that do not need one
-// (e.g. sessionStart).
-type hookEntry struct {
-	Command       string `json:"command"`
-	Matcher       string `json:"matcher,omitempty"`
-	LockieManaged bool   `json:"_lockie_managed"`
-}
-
-// hooksFile is the on-disk shape of ~/.cursor/hooks.json.
-type hooksFile struct {
-	Version int                    `json:"version"`
-	Hooks   map[string][]hookEntry `json:"hooks"`
-}
+const hooksFileVersion = 1
 
 // hookSpec links one canonical Lockie hook to one or more Cursor
 // native hook keys. Cursor splits Claude's PostToolUse into success
@@ -62,29 +47,76 @@ var hookSpecs = []hookSpec{
 	},
 }
 
-// buildHooks produces the Lockie-managed slice of hooks.json covering
-// exactly the hooks in `enabled`. The real install path (step 8.3b)
-// will merge this into the user's existing file; for dry-run we emit
-// the standalone slice so callers can preview it.
-func buildHooks(enabled []agent.HookType) hooksFile {
+// lockieEntry returns one Lockie-managed entry as map[string]any so the
+// merger can mix it with user-authored entries that come back from the
+// JSON parser as the same type.
+func (s hookSpec) lockieEntry() map[string]any {
+	entry := map[string]any{
+		"_lockie_managed": true,
+		"command":         s.command,
+	}
+	if s.matcher != "" {
+		entry["matcher"] = s.matcher
+	}
+	return entry
+}
+
+// nativeKeysOwned returns every Cursor native hook key Lockie may
+// touch. Used by the uninstaller and Status.
+func nativeKeysOwned() []string {
+	out := make([]string, 0)
+	for _, s := range hookSpecs {
+		out = append(out, s.nativeKeys...)
+	}
+	return out
+}
+
+// canonicalFor returns the canonical HookType for a Cursor native hook
+// key. Empty HookType + false means Lockie does not own this key.
+func canonicalFor(nativeKey string) (agent.HookType, bool) {
+	for _, s := range hookSpecs {
+		for _, k := range s.nativeKeys {
+			if k == nativeKey {
+				return s.canonical, true
+			}
+		}
+	}
+	return "", false
+}
+
+// buildLockiePlan returns the Lockie-managed hook entries for the
+// enabled canonical hooks, keyed by Cursor native hook name. A single
+// canonical HookPostToolUse fans out to both postToolUse and
+// postToolUseFailure (IMPLEMENTATION.md §6.0).
+func buildLockiePlan(enabled []agent.HookType) map[string][]any {
 	enabledSet := make(map[agent.HookType]bool, len(enabled))
 	for _, h := range enabled {
 		enabledSet[h] = true
 	}
-
-	hooks := make(map[string][]hookEntry)
-	for _, spec := range hookSpecs {
-		if !enabledSet[spec.canonical] {
+	out := map[string][]any{}
+	for _, s := range hookSpecs {
+		if !enabledSet[s.canonical] {
 			continue
 		}
-		entry := hookEntry{
-			Command:       spec.command,
-			Matcher:       spec.matcher,
-			LockieManaged: true,
-		}
-		for _, key := range spec.nativeKeys {
-			hooks[key] = []hookEntry{entry}
+		entry := s.lockieEntry()
+		for _, key := range s.nativeKeys {
+			out[key] = []any{entry}
 		}
 	}
-	return hooksFile{Version: 1, Hooks: hooks}
+	return out
+}
+
+// isLockieManaged reports whether an entry carries
+// `"_lockie_managed": true`.
+func isLockieManaged(entry any) bool {
+	m, ok := entry.(map[string]any)
+	if !ok {
+		return false
+	}
+	v, ok := m["_lockie_managed"]
+	if !ok {
+		return false
+	}
+	b, ok := v.(bool)
+	return ok && b
 }
