@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ujjalsharma100/lockie/internal/audit"
 	"github.com/ujjalsharma100/lockie/internal/cli"
 	"github.com/ujjalsharma100/lockie/internal/daemon"
 	"github.com/ujjalsharma100/lockie/internal/store/memory"
@@ -147,7 +148,7 @@ func startTestDaemon(t *testing.T) (socketPath string, stop func()) {
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	socketPath = filepath.Join(dir, "d.sock")
 	st := memory.New()
-	h, err := daemon.NewHandler(st)
+	h, err := daemon.NewHandlerWith(st, audit.Noop{})
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}

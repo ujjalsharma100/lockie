@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ujjalsharma100/lockie/internal/audit"
 	"github.com/ujjalsharma100/lockie/internal/detect"
 	"github.com/ujjalsharma100/lockie/internal/placeholder"
 	"github.com/ujjalsharma100/lockie/internal/store"
@@ -27,6 +28,7 @@ type Handler struct {
 	store    store.Store
 	detector detect.Detector
 	sessions *sessionRegistry
+	audit    audit.Appender
 	started  time.Time
 
 	// newSessionID is overridable for tests; defaults to
@@ -35,11 +37,20 @@ type Handler struct {
 	newSessionID func() (string, error)
 }
 
-// NewHandler returns a Handler wired to the supplied store. A nil
-// store is rejected — Phase 1 still wants the alias plane reachable
-// from `hook.pre_tool` once step 8.8 lands, and tests pass a memory
-// store anyway.
+// NewHandler returns a Handler wired to the supplied store and the
+// default audit log at ~/.lockie/audit.log. Tests should call
+// NewHandlerWith(st, audit.Noop{}) to avoid writing audit lines.
 func NewHandler(st store.Store) (*Handler, error) {
+	log, err := audit.OpenDefault()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: open audit log: %w", err)
+	}
+	return NewHandlerWith(st, log)
+}
+
+// NewHandlerWith wires a Handler to st and the given audit appender.
+// A nil appender discards events.
+func NewHandlerWith(st store.Store, auditLog audit.Appender) (*Handler, error) {
 	if st == nil {
 		return nil, fmt.Errorf("daemon: NewHandler requires a non-nil Store")
 	}
@@ -51,6 +62,7 @@ func NewHandler(st store.Store) (*Handler, error) {
 		store:    st,
 		detector: det,
 		sessions: newSessionRegistry(),
+		audit:    auditLog,
 		started:  time.Now(),
 		newSessionID: func() (string, error) {
 			id, err := store.NewValueID()
@@ -141,6 +153,7 @@ func (h *Handler) handleHookPrompt(req *Request, resp *Response) {
 		setError(resp, ErrCodeInternal, fmt.Sprintf("redact prompt: %v", err))
 		return
 	}
+	h.recordRedactions(p.SessionID, "prompt", events)
 	setResult(resp, HookPromptResult{Modified: len(events) > 0, Prompt: string(out)})
 }
 
@@ -174,11 +187,12 @@ func (h *Handler) handleHookPostTool(req *Request, resp *Response) {
 		return
 	}
 	sub := h.substituterFor(p.SessionID)
-	out, changed, err := redactOutput(sub, p.Output)
+	out, events, changed, err := redactOutput(sub, p.Output)
 	if err != nil {
 		setError(resp, ErrCodeInternal, fmt.Sprintf("redact output: %v", err))
 		return
 	}
+	h.recordRedactions(p.SessionID, p.Tool, events)
 	setResult(resp, HookPostToolResult{Modified: changed, Output: out})
 }
 
@@ -275,10 +289,27 @@ func setError(resp *Response, code int, msg string) {
 	resp.Error = &ErrorObject{Code: code, Message: msg}
 }
 
+// recordRedactions persists substitution events with session and tool
+// context. Failures are ignored so a full disk never blocks redaction.
+func (h *Handler) recordRedactions(sessionID, tool string, events []audit.Event) {
+	if h.audit == nil || len(events) == 0 {
+		return
+	}
+	enriched := make([]audit.Event, len(events))
+	for i, ev := range events {
+		enriched[i] = ev
+		enriched[i].SessionID = sessionID
+		enriched[i].Tool = tool
+	}
+	_ = h.audit.Append(enriched...)
+}
+
 // redactOutput runs Redact over the string-valued fields of a
-// HookPostToolOutput. It returns whether any field was rewritten.
-func redactOutput(sub *substitute.Substituter, in HookPostToolOutput) (HookPostToolOutput, bool, error) {
+// HookPostToolOutput. It returns audit events and whether any field was
+// rewritten.
+func redactOutput(sub *substitute.Substituter, in HookPostToolOutput) (HookPostToolOutput, []audit.Event, bool, error) {
 	changed := false
+	var allEvents []audit.Event
 	out := in
 	for _, slot := range []struct {
 		src *string
@@ -294,14 +325,15 @@ func redactOutput(sub *substitute.Substituter, in HookPostToolOutput) (HookPostT
 		}
 		rewritten, events, err := sub.Redact([]byte(*slot.src))
 		if err != nil {
-			return HookPostToolOutput{}, false, err
+			return HookPostToolOutput{}, nil, false, err
 		}
 		*slot.dst = string(rewritten)
 		if len(events) > 0 {
 			changed = true
+			allEvents = append(allEvents, events...)
 		}
 	}
-	return out, changed, nil
+	return out, allEvents, changed, nil
 }
 
 // rehydrateMap walks a tool-input map[string]any and rehydrates every

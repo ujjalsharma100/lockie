@@ -31,6 +31,17 @@ func AliasesPath() (string, error) {
 	return filepath.Join(dir, "aliases.json"), nil
 }
 
+// AuditPath returns the append-only substitution audit log
+// (~/.lockie/audit.log). Events record placeholder names and rule ids
+// only — never literals.
+func AuditPath() (string, error) {
+	dir, err := UserDataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "audit.log"), nil
+}
+
 // EnsureUserDataDir creates ~/.lockie (or LOCKIE_DATA_DIR) with 0700.
 func EnsureUserDataDir() (string, error) {
 	dir, err := UserDataDir()

@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ujjalsharma100/lockie/internal/audit"
 	"github.com/ujjalsharma100/lockie/internal/detect"
 )
 
@@ -46,17 +47,6 @@ type SessionMap interface {
 	// by tests; the rehydrate path uses Pattern() + ResolveAlias()
 	// directly so it stays O(input) rather than O(registry size).
 	KnownPlaceholders() []string
-}
-
-// RedactionEvent is the audit record emitted for each substitution
-// performed by Redact. It carries placeholder + rule identity but
-// never the literal, satisfying PLAN.md §7's "audit log: placeholder
-// names only" rule. Step 8.9 promotes this to internal/audit.Event;
-// keeping the type local here keeps step 8.5 self-contained.
-type RedactionEvent struct {
-	Timestamp   time.Time
-	RuleID      string
-	Placeholder string
 }
 
 // Substituter wraps a Detector and a SessionMap. A zero-value
@@ -79,13 +69,13 @@ func (s *Substituter) now() time.Time {
 
 // Redact runs the detector over in, mints a placeholder for every
 // finding via Session.PlaceholderFor, and returns the rewritten bytes
-// plus one RedactionEvent per substitution.
+// plus one audit.Event per substitution (placeholder + rule only).
 //
 // Idempotency (invariant #4): redacted output passed back through
 // Redact produces zero further findings because every rule's pattern
 // is disjoint from the placeholder pattern (PLAN.md §13.8). This is
 // asserted by TestSubstitution_IdempotentOnAlreadyRedacted.
-func (s *Substituter) Redact(in []byte) ([]byte, []RedactionEvent, error) {
+func (s *Substituter) Redact(in []byte) ([]byte, []audit.Event, error) {
 	if len(in) == 0 {
 		return append([]byte(nil), in...), nil, nil
 	}
@@ -104,7 +94,7 @@ func (s *Substituter) Redact(in []byte) ([]byte, []RedactionEvent, error) {
 	}
 
 	out := bytes.NewBuffer(make([]byte, 0, len(in)))
-	events := make([]RedactionEvent, 0, len(findings))
+	events := make([]audit.Event, 0, len(findings))
 	prev := 0
 	now := s.now()
 	for _, f := range findings {
@@ -121,7 +111,7 @@ func (s *Substituter) Redact(in []byte) ([]byte, []RedactionEvent, error) {
 		}
 		out.WriteString(ph)
 		prev = f.End
-		events = append(events, RedactionEvent{
+		events = append(events, audit.Event{
 			Timestamp:   now,
 			RuleID:      f.Rule.ID,
 			Placeholder: ph,

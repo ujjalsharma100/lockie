@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ujjalsharma100/lockie/internal/audit"
 	"github.com/ujjalsharma100/lockie/internal/daemon"
 	"github.com/ujjalsharma100/lockie/internal/store"
 	"github.com/ujjalsharma100/lockie/internal/store/disk"
@@ -33,10 +34,10 @@ func TestMain(m *testing.M) {
 // parallel-safe.
 func startTestDaemon(t *testing.T) (socketPath string, stop func()) {
 	t.Helper()
-	return startTestDaemonWithStore(t, memory.New())
+	return startTestDaemonWithStore(t, memory.New(), audit.Noop{})
 }
 
-func startTestDaemonWithStore(t *testing.T, st store.Store) (socketPath string, stop func()) {
+func startTestDaemonWithStore(t *testing.T, st store.Store, auditLog audit.Appender) (socketPath string, stop func()) {
 	t.Helper()
 	dir, err := os.MkdirTemp(shortTmp(t), "lk-")
 	if err != nil {
@@ -44,9 +45,9 @@ func startTestDaemonWithStore(t *testing.T, st store.Store) (socketPath string, 
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	socketPath = filepath.Join(dir, "d.sock")
-	h, err := daemon.NewHandler(st)
+	h, err := daemon.NewHandlerWith(st, auditLog)
 	if err != nil {
-		t.Fatalf("NewHandler: %v", err)
+		t.Fatalf("NewHandlerWith: %v", err)
 	}
 	srv := daemon.NewServer(socketPath, h)
 	if err := srv.Start(); err != nil {
@@ -68,7 +69,7 @@ func TestDaemon_AliasAddListForget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("disk.Open: %v", err)
 	}
-	sock, stop := startTestDaemonWithStore(t, st)
+	sock, stop := startTestDaemonWithStore(t, st, audit.Noop{})
 	defer stop()
 
 	c := daemon.NewClient(sock)
@@ -102,6 +103,51 @@ func TestDaemon_AliasAddListForget(t *testing.T) {
 	}
 	if len(list2.Aliases) != 0 {
 		t.Fatalf("aliases still present: %#v", list2.Aliases)
+	}
+}
+
+func TestDaemon_AuditLogOnPostTool(t *testing.T) {
+	t.Parallel()
+	auditPath := filepath.Join(t.TempDir(), "audit.log")
+	auditLog, err := audit.Open(auditPath)
+	if err != nil {
+		t.Fatalf("audit.Open: %v", err)
+	}
+	sock, stop := startTestDaemonWithStore(t, memory.New(), auditLog)
+	defer stop()
+	c := daemon.NewClient(sock)
+	defer c.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	sid := openSession(ctx, t, c)
+	_, err = c.HookPostTool(ctx, daemon.HookPostToolParams{
+		SessionID: sid,
+		Tool:      "Read",
+		Output:    daemon.HookPostToolOutput{Content: "key=" + testutil.StripeSecretKey + "\n"},
+	})
+	if err != nil {
+		t.Fatalf("HookPostTool: %v", err)
+	}
+	events, err := audit.Read(auditPath, audit.Filter{})
+	if err != nil {
+		t.Fatalf("audit.Read: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected audit events after post-tool redaction")
+	}
+	if events[0].SessionID != sid || events[0].Tool != "Read" {
+		t.Errorf("event context = session %q tool %q", events[0].SessionID, events[0].Tool)
+	}
+	if !strings.HasPrefix(events[0].Placeholder, "STRIPE_KEY_") {
+		t.Errorf("placeholder = %q", events[0].Placeholder)
+	}
+	raw, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(raw), testutil.StripeSecretKey) {
+		t.Fatal("audit log contains literal secret")
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ujjalsharma100/lockie/internal/audit"
 	"github.com/ujjalsharma100/lockie/internal/cli"
 	"github.com/ujjalsharma100/lockie/internal/daemon"
 	"github.com/ujjalsharma100/lockie/internal/store/disk"
@@ -64,9 +65,9 @@ func startTestDaemonWithDisk(t *testing.T, aliasesPath string) (socketPath strin
 	if err != nil {
 		t.Fatalf("disk.Open: %v", err)
 	}
-	h, err := daemon.NewHandler(st)
+	h, err := daemon.NewHandlerWith(st, audit.Noop{})
 	if err != nil {
-		t.Fatalf("NewHandler: %v", err)
+		t.Fatalf("NewHandlerWith: %v", err)
 	}
 	srv := daemon.NewServer(socketPath, h)
 	if err := srv.Start(); err != nil {
