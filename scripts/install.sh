@@ -83,7 +83,7 @@ else
     echo "install.sh: failed to fetch latest release from $api" >&2
     exit 1
   }
-  VERSION=$(printf '%s' "$json" | grep -Eo '"tag_name"[[:space:]]*:[[:space:]]*"v?[^"]+"' | head -n1 | sed 's/.*"v\?//;s/"$//')
+  VERSION=$(printf '%s' "$json" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/' | sed 's/^v//')
   if [ -z "$VERSION" ]; then
     echo "install.sh: could not parse latest release tag from GitHub API" >&2
     exit 1
