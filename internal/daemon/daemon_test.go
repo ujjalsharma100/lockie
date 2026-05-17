@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/ujjalsharma100/lockie/internal/daemon"
+	"github.com/ujjalsharma100/lockie/internal/store"
+	"github.com/ujjalsharma100/lockie/internal/store/disk"
 	"github.com/ujjalsharma100/lockie/internal/store/memory"
 	"github.com/ujjalsharma100/lockie/internal/testutil"
 )
@@ -31,13 +33,17 @@ func TestMain(m *testing.M) {
 // parallel-safe.
 func startTestDaemon(t *testing.T) (socketPath string, stop func()) {
 	t.Helper()
+	return startTestDaemonWithStore(t, memory.New())
+}
+
+func startTestDaemonWithStore(t *testing.T, st store.Store) (socketPath string, stop func()) {
+	t.Helper()
 	dir, err := os.MkdirTemp(shortTmp(t), "lk-")
 	if err != nil {
 		t.Fatalf("mkdir tmp: %v", err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	socketPath = filepath.Join(dir, "d.sock")
-	st := memory.New()
 	h, err := daemon.NewHandler(st)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
@@ -50,8 +56,53 @@ func startTestDaemon(t *testing.T) (socketPath string, stop func()) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = srv.Stop(ctx)
+		_ = st.Close()
 	}
 	return socketPath, stop
+}
+
+func TestDaemon_AliasAddListForget(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "aliases.json")
+	st, err := disk.Open(path)
+	if err != nil {
+		t.Fatalf("disk.Open: %v", err)
+	}
+	sock, stop := startTestDaemonWithStore(t, st)
+	defer stop()
+
+	c := daemon.NewClient(sock)
+	defer c.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if _, err := c.AliasAdd(ctx, daemon.AliasAddParams{Name: "MYKEY", Value: "xyz"}); err != nil {
+		t.Fatalf("AliasAdd: %v", err)
+	}
+	list, err := c.AliasList(ctx, daemon.AliasListParams{})
+	if err != nil {
+		t.Fatalf("AliasList: %v", err)
+	}
+	if len(list.Aliases) != 1 || list.Aliases[0].Name != "MYKEY" {
+		t.Fatalf("AliasList = %#v; want one MYKEY", list.Aliases)
+	}
+	info, err := c.AliasGet(ctx, daemon.AliasGetParams{Name: "MYKEY"})
+	if err != nil {
+		t.Fatalf("AliasGet: %v", err)
+	}
+	if info.Hash == "" {
+		t.Errorf("AliasGet hash empty")
+	}
+	if err := c.AliasForget(ctx, daemon.AliasForgetParams{Name: "MYKEY"}); err != nil {
+		t.Fatalf("AliasForget: %v", err)
+	}
+	list2, err := c.AliasList(ctx, daemon.AliasListParams{})
+	if err != nil {
+		t.Fatalf("AliasList after forget: %v", err)
+	}
+	if len(list2.Aliases) != 0 {
+		t.Fatalf("aliases still present: %#v", list2.Aliases)
+	}
 }
 
 func TestDaemon_Health(t *testing.T) {

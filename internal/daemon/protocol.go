@@ -28,6 +28,10 @@ const (
 	MethodHookPrompt   = "hook.prompt"
 	MethodHookPreTool  = "hook.pre_tool"
 	MethodHookPostTool = "hook.post_tool"
+	MethodAliasAdd     = "alias.add"
+	MethodAliasList    = "alias.list"
+	MethodAliasGet     = "alias.get"
+	MethodAliasForget  = "alias.forget"
 	MethodHealth       = "health"
 )
 
@@ -40,6 +44,7 @@ const (
 	ErrCodeInvalidParams  = 3 // params decode failed
 	ErrCodeUnknownSession = 4 // session_id not registered
 	ErrCodeInternal       = 5 // handler-side failure
+	ErrCodeNotFound       = 6 // alias or value not found
 )
 
 // Request is the wire envelope sent from client → daemon.
@@ -146,6 +151,52 @@ type HookPostToolParams struct {
 type HookPostToolResult struct {
 	Modified bool               `json:"modified"`
 	Output   HookPostToolOutput `json:"output"`
+}
+
+// AliasAddParams registers a durable alias for a literal value.
+type AliasAddParams struct {
+	Project string `json:"project,omitempty"`
+	Name    string `json:"name"`
+	Value   string `json:"value"`
+}
+
+// AliasAddResult reports the stored value-id and whether dedup reused
+// an existing value entry.
+type AliasAddResult struct {
+	ValueID string `json:"value_id"`
+	Deduped bool   `json:"deduped"`
+}
+
+// AliasListParams scopes the listing to one project (empty = user-global).
+type AliasListParams struct {
+	Project string `json:"project,omitempty"`
+}
+
+// AliasInfo is alias metadata returned by list/get — never the literal.
+type AliasInfo struct {
+	Project    string `json:"project"`
+	Name       string `json:"name"`
+	ValueID    string `json:"value_id"`
+	Hash       string `json:"hash"`
+	CreatedAt  string `json:"created_at"`
+	LastUsedAt string `json:"last_used_at"`
+}
+
+// AliasListResult carries every alias in the requested scope.
+type AliasListResult struct {
+	Aliases []AliasInfo `json:"aliases"`
+}
+
+// AliasGetParams looks up one alias by project + name.
+type AliasGetParams struct {
+	Project string `json:"project,omitempty"`
+	Name    string `json:"name"`
+}
+
+// AliasForgetParams removes an alias and GCs the value when unreferenced.
+type AliasForgetParams struct {
+	Project string `json:"project,omitempty"`
+	Name    string `json:"name"`
 }
 
 // HealthResult is the body of a `health` response: daemon identity plus

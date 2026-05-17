@@ -248,3 +248,35 @@ func (c *Client) HookPostTool(ctx context.Context, p HookPostToolParams) (*HookP
 	}
 	return &out, nil
 }
+
+// AliasAdd registers a durable alias via the daemon store.
+func (c *Client) AliasAdd(ctx context.Context, p AliasAddParams) (*AliasAddResult, error) {
+	var out AliasAddResult
+	if err := c.Call(ctx, MethodAliasAdd, p, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AliasList returns alias metadata for a project scope.
+func (c *Client) AliasList(ctx context.Context, p AliasListParams) (*AliasListResult, error) {
+	var out AliasListResult
+	if err := c.Call(ctx, MethodAliasList, p, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AliasGet returns metadata for one alias.
+func (c *Client) AliasGet(ctx context.Context, p AliasGetParams) (*AliasInfo, error) {
+	var out AliasInfo
+	if err := c.Call(ctx, MethodAliasGet, p, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AliasForget removes an alias and GCs the value when unreferenced.
+func (c *Client) AliasForget(ctx context.Context, p AliasForgetParams) error {
+	return c.Call(ctx, MethodAliasForget, p, nil)
+}

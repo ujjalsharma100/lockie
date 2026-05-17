@@ -76,6 +76,14 @@ func (h *Handler) Dispatch(req *Request) *Response {
 		h.handleHookPreTool(req, resp)
 	case MethodHookPostTool:
 		h.handleHookPostTool(req, resp)
+	case MethodAliasAdd:
+		h.handleAliasAdd(req, resp)
+	case MethodAliasList:
+		h.handleAliasList(req, resp)
+	case MethodAliasGet:
+		h.handleAliasGet(req, resp)
+	case MethodAliasForget:
+		h.handleAliasForget(req, resp)
 	case MethodHealth:
 		h.handleHealth(req, resp)
 	default:

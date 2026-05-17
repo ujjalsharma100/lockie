@@ -20,6 +20,10 @@ func NewRoot() *cobra.Command {
 		newInstallCmd(),
 		newUninstallCmd(),
 		newStatusCmd(),
+		newAddCmd(),
+		newListCmd(),
+		newShowCmd(),
+		newForgetCmd(),
 		newDaemonCmd(),
 		newHookCmd(),
 	)

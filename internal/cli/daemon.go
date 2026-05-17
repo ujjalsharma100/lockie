@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ujjalsharma100/lockie/internal/daemon"
-	"github.com/ujjalsharma100/lockie/internal/store/memory"
 )
 
 // newDaemonCmd builds the `lockie daemon` command group:
@@ -21,9 +20,9 @@ import (
 //	lockie daemon stop  [--socket PATH]
 //	lockie daemon status [--socket PATH]
 //
-// Phase 1 ships an in-memory store as the daemon's backing — the
-// keychain swap-in is Phase 2 (§9.1) and won't change this wiring
-// because the Store interface is the swap boundary.
+// Phase 1 persists aliases at ~/.lockie/aliases.json via the disk
+// store (§8.8). Phase 2 swaps in the OS keychain without changing
+// this wiring because the Store interface is the swap boundary.
 func newDaemonCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "daemon",
@@ -106,7 +105,11 @@ func resolveSocket(override string) (string, error) {
 }
 
 func runDaemonForeground(cmd *cobra.Command, socketPath string) error {
-	st := memory.New()
+	st, err := daemon.OpenStore()
+	if err != nil {
+		return err
+	}
+	defer st.Close()
 	h, err := daemon.NewHandler(st)
 	if err != nil {
 		return err
