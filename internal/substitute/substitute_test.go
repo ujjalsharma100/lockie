@@ -11,10 +11,10 @@ import (
 	"github.com/ujjalsharma100/lockie/internal/placeholder"
 )
 
-// Redact-path tests that need vendor-shaped sample secrets are skipped in
-// git CI (push secret scanning rejects realistic key material). To run them
-// locally, paste sample test keys into the inputs below and remove the
-// relevant t.Skip — see test/fixtures/envfiles/*.env headers for shapes.
+// Redact-path tests expect vendor-shaped sample secrets in inputs/fixtures.
+// Committed placeholders (SAMPLE_*_REPLACE_ME) keep push scanning happy;
+// paste sample test keys locally before running those tests — see
+// test/fixtures/envfiles/*.env headers for shapes. Do not commit real keys.
 
 // newSubstituter wires a real default detector and a fresh session.
 // Tests that want a custom detector instantiate Substituter directly.
@@ -34,7 +34,6 @@ func newSubstituter(t *testing.T) *Substituter {
 // Redact then Rehydrate returns the exact original bytes (modulo any
 // non-detected substrings, which trivially survive unchanged).
 func TestSubstitution_RoundTripPreservesLiteral(t *testing.T) {
-	t.Skip("needs sample Stripe-shaped key in input; see package comment and test/fixtures/envfiles/stripe.env")
 	s := newSubstituter(t)
 	// e.g. STRIPE_LIVE=sk_test_… tail
 	input := []byte("STRIPE_LIVE=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME tail\n")
@@ -64,7 +63,6 @@ func TestSubstitution_RoundTripPreservesLiteral(t *testing.T) {
 // Redact on previously-redacted output produces zero new events and
 // byte-identical output (invariant #4 in its strict form).
 func TestSubstitution_IdempotentOnAlreadyRedacted(t *testing.T) {
-	t.Skip("needs sample Stripe-shaped key in input; see package comment")
 	s := newSubstituter(t)
 	input := []byte("API=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME\n")
 	first, _, err := s.Redact(input)
@@ -150,7 +148,6 @@ func TestSubstitution_LongerUnknownDoesNotFallBackToShorter(t *testing.T) {
 // deferred to Phase 3 alongside the rest of the perf/property gate;
 // the §8.4 idempotency test uses the same pattern.
 func TestSubstitution_RedactRehydrateRoundTrip_DeterministicSweep(t *testing.T) {
-	t.Skip("needs sample keys in secrets slice; see test/fixtures/envfiles/mixed.env header")
 	secrets := []string{
 		"SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME",
 		"SAMPLE_AWS_ACCESS_KEY_ID_REPLACE_ME",
@@ -194,7 +191,6 @@ func TestSubstitution_RedactRehydrateRoundTrip_DeterministicSweep(t *testing.T) 
 // placeholders (because the literal was already minted on the first
 // call). Across distinct sessions, placeholders restart at _1.
 func TestSubstitution_RedactStableAcrossCalls(t *testing.T) {
-	t.Skip("needs sample Stripe-shaped key in input; see package comment")
 	s := newSubstituter(t)
 	input := []byte("API=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME\n")
 	first, _, err := s.Redact(input)
@@ -213,7 +209,6 @@ func TestSubstitution_RedactStableAcrossCalls(t *testing.T) {
 // TestSubstitution_RedactMultipleSecretsOneInput exercises the
 // multi-finding rewrite path (sorted findings, non-overlapping spans).
 func TestSubstitution_RedactMultipleSecretsOneInput(t *testing.T) {
-	t.Skip("needs sample Stripe/AWS/GitHub keys in input; see test/fixtures/envfiles/mixed.env")
 	s := newSubstituter(t)
 	input := []byte(strings.Join([]string{
 		"STRIPE=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME",
@@ -261,7 +256,6 @@ func TestSubstitution_RehydrateMissingSession(t *testing.T) {
 // concurrent rewrites. The race detector (make test -race) catches any
 // missing locks.
 func TestSubstitution_ConcurrentRedactSafe(t *testing.T) {
-	t.Skip("needs sample Stripe-shaped key in input; see package comment")
 	s := newSubstituter(t)
 	input := []byte("STRIPE_LIVE=SAMPLE_STRIPE_SECRET_KEY_REPLACE_ME\n")
 

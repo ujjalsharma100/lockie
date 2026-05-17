@@ -20,6 +20,7 @@ func NewRoot() *cobra.Command {
 		newInstallCmd(),
 		newUninstallCmd(),
 		newStatusCmd(),
+		newDaemonCmd(),
 	)
 	return root
 }

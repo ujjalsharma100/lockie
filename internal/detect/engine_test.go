@@ -66,8 +66,7 @@ func dumpFindings(findings []Finding) string {
 
 func TestEngine_StripeEnv(t *testing.T) {
 	// Fixture ships placeholder text only (see test/fixtures/envfiles/stripe.env).
-	// Paste sample sk_test_/rk_test_ keys locally, then remove this skip.
-	t.Skip("stripe.env contains placeholders; replace with sample Stripe test keys to run")
+	// Paste sample sk_test_/rk_test_ keys locally before expecting this to pass.
 	eng, err := NewDefaultEngine()
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
@@ -83,7 +82,7 @@ func TestEngine_StripeEnv(t *testing.T) {
 
 func TestEngine_AWSEnv(t *testing.T) {
 	// Fixture ships placeholder text only (see test/fixtures/envfiles/aws.env).
-	t.Skip("aws.env contains placeholders; replace with sample AWS test credentials to run")
+	// Paste sample credentials locally before expecting this to pass.
 	eng, err := NewDefaultEngine()
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
@@ -104,7 +103,6 @@ func TestEngine_AWSEnv(t *testing.T) {
 // to the documented rule. Requires sample keys in mixed.env — see
 // test/fixtures/envfiles/mixed.env header comments.
 func TestEngine_MixedEnvGolden(t *testing.T) {
-	t.Skip("mixed.env contains placeholders; replace with sample keys per fixture header to run")
 	eng, err := NewDefaultEngine()
 	if err != nil {
 		t.Fatalf("NewDefaultEngine: %v", err)
@@ -270,8 +268,7 @@ func TestResolveOverlaps_NonOverlappingPreserved(t *testing.T) {
 }
 
 func TestStream_OffsetsMatchScan(t *testing.T) {
-	// Same fixture requirement as TestEngine_MixedEnvGolden.
-	t.Skip("mixed.env contains placeholders; replace with sample keys per fixture header to run")
+	// Same fixture requirement as TestEngine_MixedEnvGolden (see mixed.env header).
 	input := readFixture(t, "envfiles/mixed.env")
 	eng, err := NewDefaultEngine()
 	if err != nil {
