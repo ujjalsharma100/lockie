@@ -1,3 +1,5 @@
+[ Experimenting with the idea ]
+
 # lockie
 
 Secret management for AI coding agents. Redact secrets in tool output and rehydrate them back when being used.
